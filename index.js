@@ -1,6 +1,4 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
 
@@ -8,97 +6,92 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-let qrCodeData = '';
-let isConnected = false;
+let clientQR = null;
+let isClientConnected = false;
 
 const client = new Client({
     authStrategy: new LocalAuth(),
-    puppeteer: { 
-        headless: true,
-        protocolTimeout: 120000, // رفع المهلة إلى دقيقتين لضمان عدم حدوث أي Timeout
+    puppeteer: {
         args: [
-            '--no-sandbox', 
+            '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
             '--disable-gpu'
-        ] 
+        ],
+        executablePath: process.env.CHROME_PATH || undefined
     }
 });
 
 client.on('qr', (qr) => {
-    qrCodeData = qr;
-    isConnected = false;
-    console.log('⚡ تم توليد QR Code جديد للربط:');
-    qrcode.generate(qr, { small: true });
+    console.log('QR RECEIVED', qr);
+    clientQR = qr;
+    isClientConnected = false;
 });
 
 client.on('ready', () => {
-    isConnected = true;
-    qrCodeData = '';
-    console.log('✅ تم ربط واتساب الموظف بنجاح!');
+    console.log('WhatsApp is ready!');
+    isClientConnected = true;
+    clientQR = null;
 });
 
+client.on('authenticated', () => {
+    console.log('WhatsApp Authenticated!');
+    isClientConnected = true;
+    clientQR = null;
+});
+
+client.on('auth_failure', (msg) => {
+    console.error('AUTHENTICATION FAILURE', msg);
+    isClientConnected = false;
+});
+
+client.on('disconnected', (reason) => {
+    console.log('Client was disconnected', reason);
+    isClientConnected = false;
+    clientQR = null;
+    client.initialize();
+});
+
+// مسار فحص حالة الواتساب والـ QR Code المطلوب من صفحة الـ PHP
 app.get('/qr-status', (req, res) => {
-    res.json({ connected: isConnected, qr: qrCodeData });
+    res.json({
+        connected: isClientConnected,
+        qr: clientQR
+    });
 });
 
-// مسار إرسال الرسائل الفوري والسريع بدون أي انتظار أو تعقيد
+// مسار استقبال طلبات إرسال الرسائل من PHP
 app.post('/send-message', async (req, res) => {
     try {
         let { phone, message } = req.body;
+        message = decodeURIComponent(message);
+        
         if (!phone || !message) {
-            return res.status(400).json({ status: 'error', error: 'Missing phone or message' });
+            return res.status(400).json({ status: 'error', message: 'Missing phone or message' });
         }
 
-        // فك ترميز النص العربي لضمان وضوحه
-        try {
-            message = decodeURIComponent(message);
-        } catch (e) {}
-
-        // تنظيف الرقم ومعالجة الأرقام الأردنية دولياً
-        phone = phone.replace(/\D/g, '');
-        if (phone.startsWith('0')) {
-            phone = '962' + phone.substring(1);
-        } else if (phone.startsWith('7') && phone.length === 9) {
-            phone = '962' + phone;
-        }
-
-        const chatId = phone + '@c.us';
-
-        // الإرسال الفوري المباشر دون استخدام getNumberId لتجنب الـ Timeout
-        await client.sendMessage(chatId, message);
-        console.log(`📤 تم إرسال رسالة الواتساب فوراً بنجاح إلى: ${chatId}`);
-        res.json({ status: 'success', sent_to: chatId });
+        // تنسيق رقم الهاتف ليكون ملائماً للواتساب (تأكد من إضافة الرمز الدولي إذا لزم الأمر، مثل 962 للأردن)
+        let formattedPhone = phone.includes('@c.us') ? phone : `${phone}@c.us`;
+        
+        await client.sendMessage(formattedPhone, message);
+        res.json({ status: 'success', message: 'Message sent successfully' });
     } catch (error) {
-        console.error('❌ خطأ في إرسال رسالة الواتساب:', error.message);
-        res.status(500).json({ status: 'error', error: error.message });
+        console.error('Error sending message:', error);
+        res.status(500).json({ status: 'error', message: error.message });
     }
 });
 
-client.on('message', async (msg) => {
-    if (msg.fromMe || msg.from.includes('@g.us')) return;
-
-    const senderPhone = msg.from.replace('@c.us', '');
-    
-    try {
-        const response = await axios.post('https://muk-tech.com/aqar/ai_chat_assistant.php', {
-            is_automated_webhook: true,
-            owner_phone: senderPhone,
-            owner_message: msg.body
-        });
-
-        if (response.data && response.data.pitch_reply) {
-            await client.sendMessage(msg.from, response.data.pitch_reply);
-        }
-    } catch (e) {
-        console.error('❌ خطأ في التزامن مع Hostinger:', e.message);
-    }
+// مسار ترحيبي رئيسي
+app.get('/', (req, res) => {
+    res.send('Aqar WhatsApp Bridge is running successfully.');
 });
 
 client.initialize();
 
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`🚀 خادم الواتساب الوسيط يعمل على المنفذ ${PORT}`));
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+    console.log(`🚀 خادم الواتساب الوسيط يعمل على المنفذ ${PORT}`);
+});
