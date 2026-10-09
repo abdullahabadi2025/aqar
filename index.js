@@ -15,7 +15,7 @@ const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: { 
         headless: true,
-        protocolTimeout: 60000,
+        protocolTimeout: 120000, // رفع المهلة إلى دقيقتين لضمان عدم حدوث أي Timeout
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
@@ -45,7 +45,7 @@ app.get('/qr-status', (req, res) => {
     res.json({ connected: isConnected, qr: qrCodeData });
 });
 
-// مسار إرسال الرسائل مع فك ترميز النص العربي بدقة
+// مسار إرسال الرسائل الفوري والسريع بدون أي انتظار أو تعقيد
 app.post('/send-message', async (req, res) => {
     try {
         let { phone, message } = req.body;
@@ -53,14 +53,12 @@ app.post('/send-message', async (req, res) => {
             return res.status(400).json({ status: 'error', error: 'Missing phone or message' });
         }
 
-        // فك ترميز النص العربي لضمان عدم ظهور رموز
+        // فك ترميز النص العربي لضمان وضوحه
         try {
             message = decodeURIComponent(message);
-        } catch (e) {
-            // إذا كان النص مرسلاً عادياً غير مشفر يتم اعتماده مباشرة
-        }
+        } catch (e) {}
 
-        // تنسيق الرقم الأردني دولياً
+        // تنظيف الرقم ومعالجة الأرقام الأردنية دولياً
         phone = phone.replace(/\D/g, '');
         if (phone.startsWith('0')) {
             phone = '962' + phone.substring(1);
@@ -68,18 +66,11 @@ app.post('/send-message', async (req, res) => {
             phone = '962' + phone;
         }
 
-        let chatId = phone + '@c.us';
-        try {
-            const formattedId = await client.getNumberId(phone);
-            if (formattedId && formattedId._serialized) {
-                chatId = formattedId._serialized;
-            }
-        } catch (err) {
-            console.log('⚠️ استخدام الصيغة المباشرة للرقم');
-        }
+        const chatId = phone + '@c.us';
 
+        // الإرسال الفوري المباشر دون استخدام getNumberId لتجنب الـ Timeout
         await client.sendMessage(chatId, message);
-        console.log(`📤 تم إرسال رسالة الواتساب بنجاح إلى المعرّف: ${chatId}`);
+        console.log(`📤 تم إرسال رسالة الواتساب فوراً بنجاح إلى: ${chatId}`);
         res.json({ status: 'success', sent_to: chatId });
     } catch (error) {
         console.error('❌ خطأ في إرسال رسالة الواتساب:', error.message);
