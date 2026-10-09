@@ -15,7 +15,7 @@ const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: { 
         headless: true,
-        protocolTimeout: 60000, // رفع المهلة إلى 60 ثانية لتجنب الـ Timeout
+        protocolTimeout: 60000,
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
@@ -45,7 +45,7 @@ app.get('/qr-status', (req, res) => {
     res.json({ connected: isConnected, qr: qrCodeData });
 });
 
-// مسار إرسال الرسائل بمهلة أمان عالية للأرقام الأردنية
+// مسار إرسال الرسائل المُحسّن لمعالجة الأرقام غير المسجلة تفادياً لخطأ getChat
 app.post('/send-message', async (req, res) => {
     try {
         let { phone, message } = req.body;
@@ -61,19 +61,20 @@ app.post('/send-message', async (req, res) => {
             phone = '962' + phone;
         }
 
-        if (!phone.endsWith('@c.us')) {
-            phone = phone + '@c.us';
+        // التحقق من وجود حساب واتساب نشط للرقم وتوليد المعرّف الصحيح
+        let chatId = phone + '@c.us';
+        try {
+            const formattedId = await client.getNumberId(phone);
+            if (formattedId && formattedId._serialized) {
+                chatId = formattedId._serialized;
+            }
+        } catch (err) {
+            console.log('⚠️ استخدام الصيغة المباشرة للرقم نظراً لتعذر التحقق عبر getNumberId');
         }
 
-        // التحقق من حالة اتصال الواتساب قبل الإرسال
-        const state = await client.getState();
-        if (state !== 'CONNECTED') {
-            console.warn('⚠️ تحذير: جلسة الواتساب ليست في حالة متصلة تماماً، الحالة الحالية:', state);
-        }
-
-        await client.sendMessage(phone, message);
-        console.log(`📤 تم إرسال رسالة الواتساب بنجاح إلى الرقم: ${phone}`);
-        res.json({ status: 'success', sent_to: phone });
+        await client.sendMessage(chatId, message);
+        console.log(`📤 تم إرسال رسالة الواتساب بنجاح إلى المعرّف: ${chatId}`);
+        res.json({ status: 'success', sent_to: chatId });
     } catch (error) {
         console.error('❌ خطأ في إرسال رسالة الواتساب:', error.message);
         res.status(500).json({ status: 'error', error: error.message });
