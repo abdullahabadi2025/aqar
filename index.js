@@ -9,7 +9,7 @@ app.use(cors());
 let clientQR = null;
 let isClientConnected = false;
 
-// إعداد عميل الواتساب مع خيارات خفيفة جداً لتسريع الإقلاع على السحابة
+// إعداد العميل بأعلى خفة لتناسب الذاكرة المحدودة (512MB)
 const client = new Client({
     authStrategy: new LocalAuth({ dataPath: './whatsapp_sessions' }),
     puppeteer: {
@@ -21,46 +21,45 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process', // مفيد جداً لخوادم Render لتقليل استهلاك الذاكرة
-            '--disable-gpu'
+            '--single-process',
+            '--disable-gpu',
+            '--disable-extensions'
         ],
         executablePath: process.env.CHROME_PATH || undefined
     }
 });
 
 client.on('qr', (qr) => {
-    console.log('⚡ QR RECEIVED SUCCESSFULLY');
+    console.log('⚡ QR RECEIVED');
     clientQR = qr;
     isClientConnected = false;
 });
 
 client.on('ready', () => {
-    console.log('✅ WhatsApp is ready and connected!');
+    console.log('✅ WhatsApp Connected & Ready!');
     isClientConnected = true;
     clientQR = null;
 });
 
 client.on('authenticated', () => {
-    console.log('🔐 WhatsApp Authenticated Successfully!');
+    console.log('🔐 WhatsApp Authenticated!');
     isClientConnected = true;
     clientQR = null;
 });
 
 client.on('auth_failure', (msg) => {
-    console.error('❌ AUTHENTICATION FAILURE:', msg);
+    console.error('❌ Auth Failure:', msg);
     isClientConnected = false;
 });
 
 client.on('disconnected', (reason) => {
-    console.log('⚠️ Client was disconnected, restarting...', reason);
+    console.log('⚠️ Disconnected:', reason);
     isClientConnected = false;
     clientQR = null;
-    setTimeout(() => {
-        client.initialize().catch(err => console.error('Re-init error:', err));
-    }, 5000);
+    setTimeout(() => client.initialize(), 5000);
 });
 
-// مسار فحص حالة الواتساب والـ QR Code الفوري
+// المسار لجلب الـ QR أو حالة الاتصال
 app.get('/qr-status', (req, res) => {
     res.json({
         connected: isClientConnected,
@@ -68,43 +67,35 @@ app.get('/qr-status', (req, res) => {
     });
 });
 
-// مسار استقبال طلبات إرسال الرسائل
+// المسار لإرسال الرسائل بسرعة
 app.post('/send-message', async (req, res) => {
     try {
         let { phone, message } = req.body;
         if (!phone || !message) {
-            return res.status(400).json({ status: 'error', message: 'Missing phone or message' });
+            return res.status(400).json({ status: 'error', message: 'Missing parameters' });
         }
 
-        //فك ترميز النص إذا تم إرساله مشفرامسبقاً
         try {
             message = decodeURIComponent(message);
-        } catch (e) {
-            // إذا لم يكن مشفرأ يُترك كما هو
-        }
+        } catch (e) {}
 
         let formattedPhone = phone.includes('@c.us') ? phone : `${phone.replace(/[^0-9]/g, '')}@c.us`;
         
         await client.sendMessage(formattedPhone, message);
-        res.json({ status: 'success', message: 'Message sent successfully' });
+        res.json({ status: 'success', message: 'Sent successfully' });
     } catch (error) {
-        console.error('Error sending message:', error);
+        console.error('Send error:', error);
         res.status(500).json({ status: 'error', message: error.message });
     }
 });
 
-// مسار ترحيبي رئيسي للاختبار
 app.get('/', (req, res) => {
-    res.send('Aqar WhatsApp Bridge is running securely and fast.');
+    res.send('Aqar WhatsApp Bridge is running smoothly.');
 });
 
-// بدء التشغيل
-console.log('🚀 Initializing WhatsApp Client...');
-client.initialize().catch(err => {
-    console.error('Failed to initialize client:', err);
-});
+client.initialize().catch(err => console.error('Init error:', err));
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log(`🌐 خادم الواتساب الوسيط يعمل بكفاءة على المنفذ ${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
 });
