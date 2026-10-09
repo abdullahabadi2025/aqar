@@ -30,7 +30,9 @@ const client = new Client({
 client.on('qr', (qr) => {
     qrCodeData = qr;
     isConnected = false;
-    console.log('⚡ تم توليد QR Code جديد للربط.');
+    console.log('⚡ تم توليد QR Code جديد للربط:');
+    // طباعة الباركود بشكل مرئي في السجلات (Logs) في Railway
+    qrcode.generate(qr, { small: true });
 });
 
 client.on('ready', () => {
@@ -65,5 +67,5 @@ client.on('message', async (msg) => {
 
 client.initialize();
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`🚀 خادم الواتساب الوسيط يعمل على المنفذ ${PORT}`));
