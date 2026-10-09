@@ -15,7 +15,7 @@ const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: { 
         headless: true,
-        executablePath: process.env.CHROME_BIN || undefined,
+        executablePath: '/opt/render/.cache/puppeteer/chrome/linux-127.0.6533.88/chrome-linux64/chrome',
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
