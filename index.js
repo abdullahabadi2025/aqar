@@ -15,6 +15,7 @@ const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: { 
         headless: true,
+        protocolTimeout: 60000, // رفع المهلة إلى 60 ثانية لتجنب الـ Timeout
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
@@ -44,7 +45,7 @@ app.get('/qr-status', (req, res) => {
     res.json({ connected: isConnected, qr: qrCodeData });
 });
 
-// المسار الآلي بالكامل لإرسال رسالة الاستقطاب للعميل مباشرة من Railway
+// مسار إرسال الرسائل بمهلة أمان عالية للأرقام الأردنية
 app.post('/send-message', async (req, res) => {
     try {
         let { phone, message } = req.body;
@@ -64,8 +65,14 @@ app.post('/send-message', async (req, res) => {
             phone = phone + '@c.us';
         }
 
+        // التحقق من حالة اتصال الواتساب قبل الإرسال
+        const state = await client.getState();
+        if (state !== 'CONNECTED') {
+            console.warn('⚠️ تحذير: جلسة الواتساب ليست في حالة متصلة تماماً، الحالة الحالية:', state);
+        }
+
         await client.sendMessage(phone, message);
-        console.log(`📤 تم إرسال رسالة الواتساب آلياً بنجاح إلى: ${phone}`);
+        console.log(`📤 تم إرسال رسالة الواتساب بنجاح إلى الرقم: ${phone}`);
         res.json({ status: 'success', sent_to: phone });
     } catch (error) {
         console.error('❌ خطأ في إرسال رسالة الواتساب:', error.message);
@@ -73,7 +80,7 @@ app.post('/send-message', async (req, res) => {
     }
 });
 
-// استقبال رسائل العملاء والرد عليها آلياً عبر Webhook
+// استقبال رسائل العملاء والرد عليها آلياً
 client.on('message', async (msg) => {
     if (msg.fromMe || msg.from.includes('@g.us')) return;
 
