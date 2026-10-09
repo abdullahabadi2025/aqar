@@ -1,4 +1,5 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const puppeteer = require('puppeteer');
 const qrcode = require('qrcode-terminal');
 const axios = require('axios');
 const express = require('express');
@@ -15,7 +16,7 @@ const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: { 
         headless: true,
-        executablePath: '/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome',
+        executablePath: puppeteer.executablePath(),
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
