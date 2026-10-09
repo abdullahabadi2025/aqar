@@ -1,16 +1,29 @@
-# استخدام صورة Puppeteer الرسمية المجهزة بالكامل ومتصفح كروم
-FROM ghcr.io/puppeteer/puppeteer:22.15.0
+FROM node:18-slim
 
-# تعيين مجلد العمل داخل الحاوية
-WORKDIR /usr/src/app
+# تثبيت الحزم والمكتبات اللازمة لتشغيل متصفح كروم الوهمي
+RUN apt-get update && apt-get install -y \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    && rm -rf /var/lib/apt/lists/*
 
-# نسخ ملفات الاعتماديات وتثبيتها
+WORKDIR /app
+
 COPY package*.json ./
 RUN npm install
 
-# نسخ باقي ملفات المشروع
 COPY . .
 
-# تعيين المنفذ وتشغيل الخادم
-EXPOSE 10000
+EXPOSE 8080
 CMD ["node", "index.js"]
