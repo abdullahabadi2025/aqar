@@ -13,7 +13,18 @@ let isConnected = false;
 
 const client = new Client({
     authStrategy: new LocalAuth(),
-    puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+    puppeteer: { 
+        headless: true,
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+        ] 
+    }
 });
 
 client.on('qr', (qr) => {
@@ -28,12 +39,10 @@ client.on('ready', () => {
     console.log('✅ تم ربط واتساب الموظف بنجاح!');
 });
 
-// API لإرجاع حالة الـ QR لموقعك أو للمتابعة
 app.get('/qr-status', (req, res) => {
     res.json({ connected: isConnected, qr: qrCodeData });
 });
 
-// الاستقبال التلقائي لرسائل أصحاب العقارات وتحويلها لـ Hostinger (Gemini AI)
 client.on('message', async (msg) => {
     if (msg.fromMe || msg.from.includes('@g.us')) return;
 
@@ -48,7 +57,6 @@ client.on('message', async (msg) => {
 
         if (response.data && response.data.pitch_reply) {
             await client.sendMessage(msg.from, response.data.pitch_reply);
-            console.log(`🚀 تم الرد الآلي على (${senderPhone})`);
         }
     } catch (e) {
         console.error('❌ خطأ في التزامن مع Hostinger:', e.message);
