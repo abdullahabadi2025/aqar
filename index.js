@@ -45,12 +45,19 @@ app.get('/qr-status', (req, res) => {
     res.json({ connected: isConnected, qr: qrCodeData });
 });
 
-// مسار إرسال الرسائل المُحسّن لمعالجة الأرقام غير المسجلة تفادياً لخطأ getChat
+// مسار إرسال الرسائل مع فك ترميز النص العربي بدقة
 app.post('/send-message', async (req, res) => {
     try {
         let { phone, message } = req.body;
         if (!phone || !message) {
             return res.status(400).json({ status: 'error', error: 'Missing phone or message' });
+        }
+
+        // فك ترميز النص العربي لضمان عدم ظهور رموز
+        try {
+            message = decodeURIComponent(message);
+        } catch (e) {
+            // إذا كان النص مرسلاً عادياً غير مشفر يتم اعتماده مباشرة
         }
 
         // تنسيق الرقم الأردني دولياً
@@ -61,7 +68,6 @@ app.post('/send-message', async (req, res) => {
             phone = '962' + phone;
         }
 
-        // التحقق من وجود حساب واتساب نشط للرقم وتوليد المعرّف الصحيح
         let chatId = phone + '@c.us';
         try {
             const formattedId = await client.getNumberId(phone);
@@ -69,7 +75,7 @@ app.post('/send-message', async (req, res) => {
                 chatId = formattedId._serialized;
             }
         } catch (err) {
-            console.log('⚠️ استخدام الصيغة المباشرة للرقم نظراً لتعذر التحقق عبر getNumberId');
+            console.log('⚠️ استخدام الصيغة المباشرة للرقم');
         }
 
         await client.sendMessage(chatId, message);
@@ -81,7 +87,6 @@ app.post('/send-message', async (req, res) => {
     }
 });
 
-// استقبال رسائل العملاء والرد عليها آلياً
 client.on('message', async (msg) => {
     if (msg.fromMe || msg.from.includes('@g.us')) return;
 
