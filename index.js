@@ -44,7 +44,7 @@ app.get('/qr-status', (req, res) => {
     res.json({ connected: isConnected, qr: qrCodeData });
 });
 
-// مسار إرسال الرسائل وتنسيق الأرقام الأردنية (07...)
+// المسار الآلي بالكامل لإرسال رسالة الاستقطاب للعميل مباشرة من Railway
 app.post('/send-message', async (req, res) => {
     try {
         let { phone, message } = req.body;
@@ -52,7 +52,7 @@ app.post('/send-message', async (req, res) => {
             return res.status(400).json({ status: 'error', error: 'Missing phone or message' });
         }
 
-        // تنظيف الرقم ومعالجة الأرقام الأردنية
+        // تنسيق الرقم الأردني دولياً
         phone = phone.replace(/\D/g, '');
         if (phone.startsWith('0')) {
             phone = '962' + phone.substring(1);
@@ -65,7 +65,7 @@ app.post('/send-message', async (req, res) => {
         }
 
         await client.sendMessage(phone, message);
-        console.log(`📤 تم إرسال رسالة الواتساب بنجاح إلى الرقم الأردني: ${phone}`);
+        console.log(`📤 تم إرسال رسالة الواتساب آلياً بنجاح إلى: ${phone}`);
         res.json({ status: 'success', sent_to: phone });
     } catch (error) {
         console.error('❌ خطأ في إرسال رسالة الواتساب:', error.message);
@@ -73,7 +73,7 @@ app.post('/send-message', async (req, res) => {
     }
 });
 
-// استقبال الرسائل الواردة وتحويلها إلى PHP للرد الآلي
+// استقبال رسائل العملاء والرد عليها آلياً عبر Webhook
 client.on('message', async (msg) => {
     if (msg.fromMe || msg.from.includes('@g.us')) return;
 
